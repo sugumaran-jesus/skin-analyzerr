@@ -4,6 +4,6 @@ flask
 gunicorn
 numpy
 pillow
-tensorflow==2.19.0
-keras==3.8.0
+tensorflow==2.20.0
+keras==3.11.0
 gdown
