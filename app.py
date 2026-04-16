@@ -1,44 +1,101 @@
-import os
+from flask import Flask, request, render_template, jsonify
+from flask_cors import CORS
+import tensorflow as tf
 import numpy as np
-from flask import Flask, render_template, request
-from tensorflow.keras.models import load_model
-from tensorflow.keras.preprocessing import image
+from PIL import Image
+import os
+import gdown
 
 app = Flask(__name__)
+CORS(app)
 
-# Load model
-model = load_model("../model/model.h5")
+# -----------------------------
+# MODEL CONFIG
+# -----------------------------
+MODEL_PATH = "model/skin_model.h5"
+MODEL_URL = "https://drive.google.com/uc?export=download&id=1bqwEkTMcJODBNfsUpAsdDDM3PFYaszYY"
 
-# Upload folder
-UPLOAD_FOLDER = "static/uploads/"
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+os.makedirs("model", exist_ok=True)
 
-# Class labels (IMPORTANT)
-class_names = os.listdir("../dataset/PlantVillage")
+# Download model if not exists
+if not os.path.exists(MODEL_PATH):
+    try:
+        print("Downloading model...")
+        gdown.download(MODEL_URL, MODEL_PATH, quiet=False)
+        print("Download complete")
+    except Exception as e:
+        print("Download failed:", e)
 
-@app.route('/')
+# -----------------------------
+# LAZY MODEL LOADING (IMPORTANT)
+# -----------------------------
+model = None
+
+def load_model():
+    global model
+    if model is None:
+        model = tf.keras.models.load_model(MODEL_PATH)
+    return model
+
+# -----------------------------
+# CLASSES
+# -----------------------------
+classes = ["acne", "dry", "normal", "oily"]
+
+# -----------------------------
+# ROUTES
+# -----------------------------
+@app.route("/")
 def index():
-    return render_template('index.html')
+    return jsonify({"status": "Skin Analyzer API is running!"})
 
-@app.route('/predict', methods=['POST'])
-def predict():
-    if 'file' not in request.files:
-        return "No file uploaded"
+@app.route("/health")
+def health():
+    model_exists = os.path.exists("model/skin_model.h5")
+    return jsonify({
+        "status": "ok",
+        "model_exists": model_exists
+    })
 
-    file = request.files['file']
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
-    file.save(filepath)
+@app.route("/api/predict", methods=["POST"])
+def predict_api():
+    try:
+        if "image" not in request.files:
+            return jsonify({"error": "No image uploaded"}), 400
+        
+        file = request.files["image"]
+        
+        # IMAGE PREPROCESSING
+        img = Image.open(file).convert("RGB").resize((128, 128))
+        img = np.array(img) / 255.0
+        img = img.reshape(1, 128, 128, 3)
+        
+        # LOAD MODEL
+        mdl = load_model()
+        
+        # PREDICTION
+        prediction = mdl.predict(img)
+        result = classes[np.argmax(prediction)]
 
-    # Preprocess image
-    img = image.load_img(filepath, target_size=(128, 128))
-    img_array = image.img_to_array(img) / 255.0
-    img_array = np.expand_dims(img_array, axis=0)
+        if result == "dry":
+            suggestion = "Your skin is dry. It lacks natural oils and moisture, which can cause tightness, flakiness, and irritation. Recommended care: Use a gentle hydrating cleanser twice daily. Apply a rich moisturizer immediately after washing. Drink plenty of water throughout the day. Avoid hot water and harsh soaps. Use products with hyaluronic acid or ceramides."
 
-    # Prediction
-    prediction = model.predict(img_array)
-    result = class_names[np.argmax(prediction)]
+        elif result == "oily":
+            suggestion = "Your skin is oily, meaning it produces excess sebum that can lead to shine and clogged pores. Recommended care: Wash your face twice daily with oil-free cleanser. Use non-comedogenic skincare products. Avoid heavy creams and greasy foods. Use gel-based lightweight moisturizers. Consider salicylic acid for oil control."
 
-    return render_template('index.html', result=result, img_path=filepath)
+        elif result == "acne":
+            suggestion = "Your skin shows signs of acne caused by clogged pores, bacteria, or excess oil production. Recommended care: Clean your face gently twice daily. Avoid touching or squeezing pimples. Use products with salicylic acid or benzoyl peroxide. Keep pillow covers and towels clean. Maintain a healthy diet and hydration."
 
-if __name__ == '__main__':
-    app.run(debug=True)
+        else:
+            suggestion = "Your skin is normal and well-balanced. Recommended care: Maintain a simple skincare routine. Cleanse and moisturize daily. Use sunscreen for protection. Stay hydrated and eat healthy. Avoid overusing skincare products."
+
+        return jsonify({"skin_type": result, "suggestion": suggestion})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# -----------------------------
+# RUN APP (LOCAL ONLY)
+# -----------------------------
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=10000)
