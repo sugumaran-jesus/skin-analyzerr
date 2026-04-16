@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template
+from flask import Flask, request, render_template, jsonify
 import tensorflow as tf
 import numpy as np
 from PIL import Image
@@ -73,65 +73,24 @@ def predict_api():
         # PREDICTION
         prediction = mdl.predict(img)
         result = classes[np.argmax(prediction)]
-                
 
-           
-            # -----------------------------
-            # LONG SUGGESTIONS
-            # -----------------------------
-            if result == "dry":
-                suggestion = """
-Your skin is dry. It lacks natural oils and moisture, which can cause tightness, flakiness, and irritation.
+        if result == "dry":
+            suggestion = "Your skin is dry. It lacks natural oils and moisture, which can cause tightness, flakiness, and irritation. Recommended care: Use a gentle hydrating cleanser twice daily. Apply a rich moisturizer immediately after washing. Drink plenty of water throughout the day. Avoid hot water and harsh soaps. Use products with hyaluronic acid or ceramides."
 
-Recommended care:
-- Use a gentle hydrating cleanser twice daily
-- Apply a rich moisturizer immediately after washing
-- Drink plenty of water throughout the day
-- Avoid hot water and harsh soaps
-- Use products with hyaluronic acid or ceramides
-"""
+        elif result == "oily":
+            suggestion = "Your skin is oily, meaning it produces excess sebum that can lead to shine and clogged pores. Recommended care: Wash your face twice daily with oil-free cleanser. Use non-comedogenic skincare products. Avoid heavy creams and greasy foods. Use gel-based lightweight moisturizers. Consider salicylic acid for oil control."
 
-            elif result == "oily":
-                suggestion = """
-Your skin is oily, meaning it produces excess sebum that can lead to shine and clogged pores.
+        elif result == "acne":
+            suggestion = "Your skin shows signs of acne caused by clogged pores, bacteria, or excess oil production. Recommended care: Clean your face gently twice daily. Avoid touching or squeezing pimples. Use products with salicylic acid or benzoyl peroxide. Keep pillow covers and towels clean. Maintain a healthy diet and hydration."
 
-Recommended care:
-- Wash your face twice daily with oil-free cleanser
-- Use non-comedogenic skincare products
-- Avoid heavy creams and greasy foods
-- Use gel-based lightweight moisturizers
-- Consider salicylic acid for oil control
-"""
+        else:
+            suggestion = "Your skin is normal and well-balanced. Recommended care: Maintain a simple skincare routine. Cleanse and moisturize daily. Use sunscreen for protection. Stay hydrated and eat healthy. Avoid overusing skincare products."
 
-            elif result == "acne":
-                suggestion = """
-Your skin shows signs of acne caused by clogged pores, bacteria, or excess oil production.
+        return jsonify({"skin_type": result, "suggestion": suggestion})
 
-Recommended care:
-- Clean your face gently twice daily
-- Avoid touching or squeezing pimples
-- Use products with salicylic acid or benzoyl peroxide
-- Keep pillow covers and towels clean
-- Maintain a healthy diet and hydration
-"""
-
-            else:
-                suggestion = """
-Your skin is normal and well-balanced.
-
-Recommended care:
-- Maintain a simple skincare routine
-- Cleanse and moisturize daily
-- Use sunscreen for protection
-- Stay hydrated and eat healthy
-- Avoid overusing skincare products
-"""
-
-        return jsonify({"skin_type": result})
-    
     except Exception as e:
+    
         return jsonify({"error": str(e)}), 500
-
 # -----------------------------
 # RUN APP (LOCAL ONLY)
 # -----------------------------
