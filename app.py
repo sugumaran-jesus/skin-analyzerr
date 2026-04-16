@@ -54,34 +54,28 @@ classes = ["acne", "dry", "normal", "oily"]
 # -----------------------------
 # ROUTE
 # -----------------------------
-@app.route("/", methods=["GET", "POST"])
-def index():
+@app.route("/api/predict", methods=["POST"])
+def predict_api():
     try:
-        result = None
-        suggestion = None
+        if "image" not in request.files:
+            return jsonify({"error": "No image uploaded"}), 400
+        
+        file = request.files["image"]
+        
+        # IMAGE PREPROCESSING
+        img = Image.open(file).convert("RGB").resize((128, 128))
+        img = np.array(img) / 255.0
+        img = img.reshape(1, 128, 128, 3)
+        
+        # LOAD MODEL
+        mdl = load_model()
+        
+        # PREDICTION
+        prediction = mdl.predict(img)
+        result = classes[np.argmax(prediction)]
+                
 
-        if request.method == "POST":
-
-            if "image" not in request.files:
-                return "No image uploaded"
-
-            file = request.files["image"]
-
-            if file.filename == "":
-                return "No file selected"
-
-            # IMAGE PREPROCESSING
-            img = Image.open(file).convert("RGB").resize((128, 128))
-            img = np.array(img) / 255.0
-            img = img.reshape(1, 128, 128, 3)
-
-            # LOAD MODEL SAFELY
-            mdl = load_model()
-
-            # PREDICTION
-            prediction = mdl.predict(img)
-            result = classes[np.argmax(prediction)]
-
+           
             # -----------------------------
             # LONG SUGGESTIONS
             # -----------------------------
@@ -133,10 +127,10 @@ Recommended care:
 - Avoid overusing skincare products
 """
 
-        return render_template("index.html", result=result, suggestion=suggestion)
-
+        return jsonify({"skin_type": result})
+    
     except Exception as e:
-        return f"Server Error: {str(e)}"
+        return jsonify({"error": str(e)}), 500
 
 # -----------------------------
 # RUN APP (LOCAL ONLY)
